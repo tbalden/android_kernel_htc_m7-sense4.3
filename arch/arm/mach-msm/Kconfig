@@ -1723,6 +1723,21 @@ config MSM_CPU_FREQ_MIN
 
 endif # CPU_FREQ_MSM
 
+<<<<<<< HEAD
+=======
+config MSM_SLEEPER
+	bool "Limit max frequency and shut off cores while screen is off"
+	default n
+	help
+	  Limit max frequency and shut off cores while screen is off
+
+config CPU_VOLTAGE_TABLE
+	bool "Enable CPU Voltage Table via sysfs for adjustements"
+	default n
+	help
+	  Krait User Votlage Control
+
+>>>>>>> 090bf66... max screen off frequency
 config MSM_CPU_AVS
 	bool "Enable software controlled Adaptive Voltage Scaling (AVS)"
 	depends on (ARCH_MSM_SCORPION && QSD_SVS)
