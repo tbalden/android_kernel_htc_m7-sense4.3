@@ -3880,13 +3880,13 @@ static struct msm_rpmrs_platform_data msm_rpmrs_data __initdata = {
 		[MSM_RPMRS_VDD_MEM_RET_LOW]	= 750000,
 		[MSM_RPMRS_VDD_MEM_RET_HIGH]	= 750000,
 		[MSM_RPMRS_VDD_MEM_ACTIVE]	= 1050000,
-		[MSM_RPMRS_VDD_MEM_MAX]		= 1150000,
+		[MSM_RPMRS_VDD_MEM_MAX]		= 1250000,
 	},
 	.vdd_dig_levels = {
 		[MSM_RPMRS_VDD_DIG_RET_LOW]	= 500000,
 		[MSM_RPMRS_VDD_DIG_RET_HIGH]	= 750000,
 		[MSM_RPMRS_VDD_DIG_ACTIVE]	= 950000,
-		[MSM_RPMRS_VDD_DIG_MAX]		= 1150000,
+		[MSM_RPMRS_VDD_DIG_MAX]		= 1250000,
 	},
 	.vdd_mask = 0x7FFFFF,
 	.rpmrs_target_id = {
@@ -5432,11 +5432,11 @@ static void __init m7_cdp_init(void)
 #ifdef CONFIG_CPU_FREQ_GOV_ONDEMAND_2_PHASE
         if(!cpu_is_krait_v1())
                 set_two_phase_freq(1134000);
-#endif
 	set_input_event_min_freq_by_cpu(1, 1134000);
 	set_input_event_min_freq_by_cpu(2, 1026000);
 	set_input_event_min_freq_by_cpu(3, 810000);
 	set_input_event_min_freq_by_cpu(4, 810000);
+#endif
 
 	
 	
