@@ -216,6 +216,7 @@ int pm8921_charger_get_attr_text(char *buf, int size);
 
 
 int pm8921_set_hsml_target_ma(int target_ma);
+
 int pm8921_charger_get_attr_text_with_ext_charger(char *buf, int size);
 
 int pm8921_gauge_get_attr_text(char *buf, int size);
@@ -377,6 +378,22 @@ static inline int pm8921_gauge_get_attr_text(char *buf, int size)
 {
 	return -ENXIO;
 }
+
+static inline int pm8921_set_hsml_target_ma(int target_ma)
+{
+	return -ENXIO;
+}
+
+static inline int pm8921_charger_get_attr_text_with_ext_charger(char *buf, int size)
+{
+	return -ENXIO;
+}
+
+static inline int pm8921_dump_all(void)
+{
+	return -ENXIO;
+}
+
 #endif 
 static inline void pm8921_chg_disable_usbin_valid_irq(void)
 {

@@ -289,7 +289,6 @@ struct pm8921_chg_chip {
 	struct delayed_work		eoc_work;
 	struct delayed_work		ovp_check_work;
 	struct delayed_work		recharge_check_work;
-	struct work_struct		unplug_ovp_fet_open_work;
 	struct work_struct		chghot_work;
 	struct delayed_work		unplug_check_work;
 	struct delayed_work		vin_collapse_check_work;
@@ -1017,6 +1016,36 @@ static struct usb_ma_limit_entry usb_ma_table[] = {
 	{1300},
 	{1500},
 };
+
+#if 0
+static int get_proper_dc_input_curr_limit_via_hsml(void)
+{
+	int i = 0;
+	int target_ma = 0;
+	int masize = ARRAY_SIZE(usb_ma_table);
+
+	if(hsml_target_ma == 0) {
+		return 0;
+	} else {
+		for(i=0; i < masize; i++)
+		{
+			if(hsml_target_ma > usb_ma_table[i]) continue;
+			else break;
+		}
+
+		if(i == 0)
+			target_ma = usb_ma_table[0];
+		else if(i == masize)
+			target_ma = usb_ma_table[masize -1];
+		else
+			target_ma = usb_ma_table[i - 1];
+
+		pr_info("%s, new target_ma: %dmA\n", __func__, target_ma);
+		return target_ma;
+	}
+}
+#endif
+
 
 #define PM8921_CHG_IUSB_MASK 0x1C
 #define PM8921_CHG_IUSB_MAX  7
@@ -3306,11 +3335,8 @@ static int is_active_chg_plugged_in(struct pm8921_chg_chip *chip,
 
 #define WRITE_BANK_4		0xC0
 #define OVP_DEBOUNCE_TIME 0x06
-static void unplug_ovp_fet_open_worker(struct work_struct *work)
+static void unplug_ovp_fet_open(struct pm8921_chg_chip *chip)
 {
-	struct pm8921_chg_chip *chip = container_of(work,
-				struct pm8921_chg_chip,
-				unplug_ovp_fet_open_work);
 	int chg_gone = 0, active_chg_plugged_in = 0, count = 0, is_wlc_remove = 0;
 	u8 active_mask = 0;
 	u16 ovpreg, ovptestreg;
@@ -3873,7 +3899,7 @@ static void unplug_check_worker(struct work_struct *work)
 			pr_info("too much ovp_trial_count=%d\n", ovp_trial_count);
 			ovp_trial_count = 0;
 		}
-		schedule_work(&chip->unplug_ovp_fet_open_work);
+		unplug_ovp_fet_open(chip);
 	}
 
 	if (!(reg_loop & VIN_ACTIVE_BIT) && (active_path & USB_ACTIVE_BIT) &&
@@ -4028,8 +4054,7 @@ static irqreturn_t batttemp_cold_irq_handler(int irq, void *data)
 static irqreturn_t chg_gone_irq_handler(int irq, void *data)
 {
 	struct pm8921_chg_chip *chip = data;
-	u8 reg;
-	int rc, chg_gone, usb_chg_plugged_in, dc_chg_plugged_in;
+	int chg_gone, usb_chg_plugged_in, dc_chg_plugged_in;
 
 	usb_chg_plugged_in = is_usb_chg_plugged_in(chip);
 	dc_chg_plugged_in = is_dc_chg_plugged_in(chip);
@@ -4038,13 +4063,6 @@ static irqreturn_t chg_gone_irq_handler(int irq, void *data)
 	pr_info("chg_gone=%d, usb_valid=%d, dc_valid=%d, fsm=%d\n",
 			chg_gone, usb_chg_plugged_in, dc_chg_plugged_in,
 			pm_chg_get_fsm_state(data));
-	rc = pm8xxx_readb(chip->dev->parent, CHG_CNTRL_3, &reg);
-	if (rc)
-		pr_err("Failed to read CHG_CNTRL_3 rc=%d\n", rc);
-
-	if (reg & CHG_USB_SUSPEND_BIT)
-		return IRQ_HANDLED;
-	schedule_work(&chip->unplug_ovp_fet_open_work);
 
 	return IRQ_HANDLED;
 }
@@ -6204,8 +6222,6 @@ static int __devinit pm8921_charger_probe(struct platform_device *pdev)
 	INIT_DELAYED_WORK(&chip->recharge_check_work, recharge_check_worker);
 	INIT_DELAYED_WORK(&chip->vin_collapse_check_work,
 						vin_collapse_check_worker);
-	INIT_WORK(&chip->unplug_ovp_fet_open_work,
-					unplug_ovp_fet_open_worker);
 	INIT_DELAYED_WORK(&chip->unplug_check_work, unplug_check_worker);
 
 	INIT_DELAYED_WORK(&ext_usb_vbat_low_task, ext_usb_vbatdet_irq_handler);

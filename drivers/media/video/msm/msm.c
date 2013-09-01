@@ -3865,6 +3865,8 @@ static int msm_actuator_probe(struct msm_actuator_info *actuator_info,
 				       (void *)act_sdev);
 
 	is_actuator_probe_success = 1; 
+	pr_info("%s: actuator_info->board_info->type=%s", __func__, actuator_info->board_info->type);
+	pr_info("%s: actuator_info->board_info->addr=0x%x", __func__, actuator_info->board_info->addr);
 
 	return rc;
 

@@ -20,10 +20,10 @@
 #define FCC_CC_COLS		5
 #define FCC_TEMP_COLS		8
 
-#define PC_CC_ROWS             29
+#define PC_CC_ROWS             31
 #define PC_CC_COLS             13
 
-#define PC_TEMP_ROWS		29
+#define PC_TEMP_ROWS		31
 #define PC_TEMP_COLS		8
 
 #define MAX_SINGLE_LUT_COLS	20
@@ -31,6 +31,7 @@
 #define OCV_UPDATE_STOP_BIT_CABLE_IN			(1)
 #define OCV_UPDATE_STOP_BIT_BATT_LEVEL			(1<<1)
 #define OCV_UPDATE_STOP_BIT_ATTR_FILE			(1<<2)
+#define OCV_UPDATE_STOP_BIT_BOOT_UP			(1<<3)
 
 struct single_row_lut {
 	int x[MAX_SINGLE_LUT_COLS];
@@ -64,6 +65,8 @@ struct pm8921_bms_battery_data {
 	struct sf_lut		*rbatt_est_ocv_lut;
 	int			default_rbatt_mohm;
 	int			delta_rbatt_mohm;
+	int			level_ocv_update_stop_begin; 
+	int			level_ocv_update_stop_end; 
 };
 
 struct pm8xxx_bms_core_data {
@@ -88,12 +91,17 @@ struct pm8921_bms_platform_data {
 	unsigned int			v_failure;
 	unsigned int			max_voltage_uv;
 	unsigned int			rconn_mohm;
+	int				store_batt_data_soc_thre;
 	int				enable_fcc_learning;
-	int						level_ocv_update_stop_begin; 
-	int						level_ocv_update_stop_end; 
 	unsigned int			criteria_sw_est_ocv; 
 	unsigned int			rconn_mohm_sw_est_ocv;
 };
+
+extern int batt_stored_magic_num;
+extern int batt_stored_soc;
+extern int batt_stored_ocv_uv;
+extern int batt_stored_cc_uv;
+extern unsigned long batt_stored_time_ms;
 
 #if defined(CONFIG_PM8921_BMS) || defined(CONFIG_PM8921_BMS_MODULE)
 extern struct pm8921_bms_battery_data  palladium_1500_data;

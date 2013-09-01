@@ -629,10 +629,11 @@ static void mdm_disable_irqs(void)
 
 static irqreturn_t mdm_errfatal(int irq, void *dev_id)
 {
-	pr_err("%s: mdm got errfatal interrupt\n", __func__);
+	pr_err("%s: detect mdm errfatal pin rising\n", __func__);
 
 	if (mdm_drv->mdm_ready &&
 		(gpio_get_value(mdm_drv->mdm2ap_status_gpio) == 1)) {
+		pr_err("%s: mdm got errfatal interrupt\n", __func__);
 		pr_debug("%s: scheduling work now\n", __func__);
 		queue_work_on(0, mdm_queue, &mdm_fatal_work);	
 	}
