@@ -578,7 +578,7 @@ static void __init perftable_fix_up(void)
 		msm8064_perf_acpu_table[PERF_LOCK_HIGHEST] = 1566000000;
 	
 	else if(speed == 2)
-		msm8064_perf_acpu_table[PERF_LOCK_HIGHEST] = 1512000000;
+		msm8064_perf_acpu_table[PERF_LOCK_HIGHEST] = 1566000000;
 	
 	else
 		msm8064_perf_acpu_table[PERF_LOCK_HIGHEST] = 1512000000;
