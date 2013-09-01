@@ -604,6 +604,8 @@ static int dhd_wl_host_event(dhd_info_t *dhd, int *ifidx, void *pktdata,
 #define WLC_HT_TKIP_RESTRICT    0x02     
 #define WLC_HT_WEP_RESTRICT     0x01    
 
+#define CUSTOM_AP_AMPDU_BA_WSIZE    32
+
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)) && defined(CONFIG_PM_SLEEP)
 static int dhd_sleep_pm_callback(struct notifier_block *nfb, unsigned long action, void *ignored)
 {
@@ -701,7 +703,7 @@ void dhd_set_packet_filter(dhd_pub_t *dhd)
 #ifdef PKT_FILTER_SUPPORT
 	int i;
 
-	DHD_TRACE(("%s: enter\n", __FUNCTION__));
+	DHD_ERROR(("%s: enter\n", __FUNCTION__));
 	if (dhd_pkt_filter_enable) {
 		for (i = 0; i < dhd->pktfilter_count; i++) {
 			dhd_pktfilter_offload_set(dhd, dhd->pktfilter[i]);
@@ -715,7 +717,7 @@ void dhd_enable_packet_filter(int value, dhd_pub_t *dhd)
 #ifdef PKT_FILTER_SUPPORT
 	int i;
 
-	DHD_TRACE(("%s: enter, value = %d\n", __FUNCTION__, value));
+	DHD_ERROR(("%s: @@@@@@@ enter, value = %d\n", __FUNCTION__, value));
 	
 	
 	if (dhd_pkt_filter_enable && (!value ||
@@ -897,8 +899,21 @@ static int dhd_set_suspend(int value, dhd_pub_t *dhd)
 				}
 #endif
 
+#ifdef PKT_FILTER_SUPPORT
+				
+ 				dhd_enable_packet_filter(1, dhd);
+#endif
+
 				
 				dhdhtc_set_power_control(0, DHDHTC_POWER_CTRL_BROWSER_LOAD_PAGE);
+				ret = dhdhtc_update_wifi_power_mode(is_screen_off);
+				if(ret < 0){
+					DHD_ERROR(("%s Set dhdhtc_update_wifi_power_mode error %d\n", __FUNCTION__, ret));
+					goto exit;
+				}
+                
+                DHD_ERROR(("Clear KDDI APK bit when screen off\n"));
+				dhdhtc_set_power_control(0, DHDHTC_POWER_CTRL_KDDI_APK);
 				ret = dhdhtc_update_wifi_power_mode(is_screen_off);
 				if(ret < 0){
 					DHD_ERROR(("%s Set dhdhtc_update_wifi_power_mode error %d\n", __FUNCTION__, ret));
@@ -929,6 +944,10 @@ static int dhd_set_suspend(int value, dhd_pub_t *dhd)
 
 				
 				DHD_TRACE(("%s: Remove extra suspend setting \n", __FUNCTION__));
+#ifdef PKT_FILTER_SUPPORT
+                
+                dhd_enable_packet_filter(0, dhd);
+#endif 
 
 #ifdef PNO_SUPPORT
 				ret = dhd_set_pfn(dhd, 0);
@@ -1048,6 +1067,7 @@ int dhdhtc_update_wifi_power_mode(int is_screen_off)
 		printf("dhd is not attached\n");
 		return -1;
 	}
+
 
 	if (dhdhtc_power_ctrl_mask) {
 		printf("power active. ctrl_mask: 0x%x\n", dhdhtc_power_ctrl_mask);
@@ -4431,7 +4451,7 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 #endif 
 	uint retry_max = 10;
 #if defined(ARP_OFFLOAD_SUPPORT)
-	int arpoe = 0;
+	int arpoe = 1;
 #endif
 	int scan_assoc_time = 40;
 	int scan_unassoc_time = 80;
@@ -4572,6 +4592,7 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 
 	if ((!op_mode && strstr(fw_path, "_apsta") != NULL) ||
 		(op_mode == DHD_FLAG_HOSTAP_MODE)) {
+        ampdu_ba_wsize = CUSTOM_AP_AMPDU_BA_WSIZE;
 #ifdef SET_RANDOM_MAC_SOFTAP
 		uint rand_mac;
 #endif
@@ -4670,13 +4691,7 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 #endif 
 	}
 
-	
-	if (get_tamper_sf() == 0)
-	DHD_ERROR(("Firmware up: op_mode=0x%04x, "
-		"Broadcom Dongle Host Driver mac="MACDBG"\n",
-		dhd->op_mode,
-		MAC2STRDBG(dhd->mac.octet)));
-	else
+    
 	DHD_ERROR(("Firmware up: op_mode=0x%04x, Broadcom Dongle Host Driver\n",
 		dhd->op_mode));
 	
@@ -5014,7 +5029,7 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 	dhd_arp_enable = arpoe;
 #endif 
 
-#if 0 
+#if 1 
 #ifdef PKT_FILTER_SUPPORT
 	
 	dhd->pktfilter_count = 5;
@@ -6367,6 +6382,8 @@ int net_os_set_suspend_disable(struct net_device *dev, int val)
 	return ret;
 }
 
+void wl_android_traffic_monitor(struct net_device *);
+
 int net_os_set_suspend(struct net_device *dev, int val, int force)
 {
 	int ret = 0;
@@ -6381,6 +6398,11 @@ int net_os_set_suspend(struct net_device *dev, int val, int force)
 		ret = dhd_suspend_resume_helper(dhd, val, force);
 #endif
 	}
+    
+    if(val == 1) {
+        wl_android_traffic_monitor(dev);
+    }
+    
 	return ret;
 }
 
