@@ -94,6 +94,7 @@ static void bma250_late_resume(struct early_suspend *h);
 #ifdef CONFIG_BMA250_WAKE_OPTIONS
 // flick of the phone wakes/sleeps the phone
 static int FLICK_WAKE_ENABLED = 1;
+static int FLICK_WAKE_SENSITIVITY = 1; // 0-1, 0 less sensitive, 1 more sensible
 // if phone has been laying around on the table (horizontal still), and gyro turns to mostly vertical for a bit of time, wake phone
 static int PICK_WAKE_ENABLED = 0;
 static int suspended = 1;
@@ -1545,9 +1546,16 @@ static void flick_wake_detection_snap(s16 data_x, s16 data_y, s16 data_z)
 {
 	if (PICK_WAKE_ENABLED == 0 && touchscreen_is_on()==0) return;
 
-	if ((
+	if (
+
+	    (FLICK_WAKE_SENSITIVITY == 0 && ((
 		(data_z > 270 || data_z < - 270 || (last_z > 260 || last_z < -260) ) &&
-		(data_y < -75 || last_y < -75)) && data_x > - 380 && data_x < 380) { // Y phone's standing or laying (0 degree mean laying),
+		(data_y < -75 || last_y < -75)) && data_x > - 380 && data_x < 380))
+	    ||
+	    (FLICK_WAKE_SENSITIVITY == 1 && ((
+		(data_z > 250 || data_z < - 250 || (last_z > 250 || last_z < -250) ) &&
+		(data_y < -55 || last_y < -55)) && data_x > - 380 && data_x < 380))
+	) { // Y phone's standing or laying (0 degree mean laying),
 //X phone is rotated on the plane of screen or not (0 degree angle means not rotated)
 
 // z overfloated will happen on snap, so check for values below -270
@@ -2172,6 +2180,38 @@ static ssize_t bma250_enable_show(struct device *dev,
 
 #ifdef CONFIG_BMA250_WAKE_OPTIONS
 
+static ssize_t bma250_setup_interrupt_for_wake(struct bma250_data *bma250);
+
+static ssize_t bma250_f2w_sensitivity_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	size_t count = 0;
+
+	count += sprintf(buf, "%d\n", FLICK_WAKE_SENSITIVITY);
+
+	return count;
+}
+
+static ssize_t bma250_f2w_sensitivity_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct bma250_data *bma250 = i2c_get_clientdata(client);
+
+	if (buf[0] >= '0' && buf[0] <= '1' && buf[1] == '\n')
+		if (FLICK_WAKE_SENSITIVITY != buf[0] - '0') {
+			FLICK_WAKE_SENSITIVITY = buf[0] - '0';
+		}
+
+	printk(KERN_INFO "BMA [FLICK_WAKE_SENSITIVITY]: %d.\n", FLICK_WAKE_SENSITIVITY);
+	bma250_setup_interrupt_for_wake(bma250);
+
+	return count;
+}
+
+static DEVICE_ATTR(f2w_sensitivity, (S_IWUSR|S_IRUGO),
+	bma250_f2w_sensitivity_show, bma250_f2w_sensitivity_store);
+
 static ssize_t bma250_flick2wake_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -2208,7 +2248,6 @@ static ssize_t bma250_pick2wake_show(struct device *dev,
 	return count;
 }
 
-static ssize_t bma250_setup_interrupt_for_wake(struct bma250_data *bma250);
 
 static ssize_t bma250_pick2wake_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
@@ -3264,7 +3303,7 @@ ssize_t bma250_setup_interrupt_for_wake(struct bma250_data *bma250) {
 //	    error += bma250_set_slope_duration(bma250->bma250_client, 0x01);
 		error += bma250_set_slope_duration(bma250->bma250_client, 0x01); // set it higher (3 samples of slope), for being less motion sensitive...
 //	    error +  bma250_set_slope_threshold(bma250->bma250_client, 0x07); // original 0x07
-		error += bma250_set_slope_threshold(bma250->bma250_client, 140); // higher threshold to only detect heavy motion through interrupt, less wake
+		error += bma250_set_slope_threshold(bma250->bma250_client, FLICK_WAKE_SENSITIVITY==0?140:110); // higher threshold to only detect heavy motion through interrupt, less wake
 		// only Y (0,1,0)
 		error += bma250_set_Int_Enable(bma250->bma250_client, 5, 0);
 		error += bma250_set_Int_Enable(bma250->bma250_client, 6, 1);
@@ -3461,6 +3500,7 @@ static struct attribute *bma250_attributes[] = {
 #endif
 #ifdef CONFIG_BMA250_WAKE_OPTIONS
 	&dev_attr_flick2wake.attr,
+	&dev_attr_f2w_sensitivity.attr,
 	&dev_attr_pick2wake.attr,
 #endif
 	NULL
