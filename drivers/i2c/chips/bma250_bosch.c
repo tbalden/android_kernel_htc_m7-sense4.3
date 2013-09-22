@@ -94,6 +94,7 @@ static void bma250_late_resume(struct early_suspend *h);
 #ifdef CONFIG_BMA250_WAKE_OPTIONS
 // flick of the phone wakes/sleeps the phone
 static int FLICK_WAKE_ENABLED = 1;
+static int FLICK_SLEEP_ENABLED = 1;
 static int FLICK_WAKE_SENSITIVITY = 1; // 0-1, 0 less sensitive, 1 more sensible
 // if phone has been laying around on the table (horizontal still), and gyro turns to mostly vertical for a bit of time, wake phone
 static int PICK_WAKE_ENABLED = 0;
@@ -1881,7 +1882,7 @@ static void bma250_work_func(struct work_struct *work)
 
 #ifdef CONFIG_BMA250_WAKE_OPTIONS
 //	printk("BMA - x %d y %d z %d\n", data_x, data_y, data_z);
-	if (FLICK_WAKE_ENABLED) {
+	if ((FLICK_SLEEP_ENABLED == 1 && touchscreen_is_on()==1)||(touchscreen_is_on()==0 && PICK_WAKE_ENABLED == 1 && FLICK_WAKE_ENABLED == 1)) {
 		flick_wake_detection_snap(data_x, data_y, data_z);
 	}
 	if (PICK_WAKE_ENABLED) pick_wake_detection_non_interrupt(bma250,data_x, data_y, data_z);
@@ -2237,6 +2238,32 @@ static ssize_t bma250_flick2wake_store(struct device *dev,
 
 static DEVICE_ATTR(flick2wake, (S_IWUSR|S_IRUGO),
 	bma250_flick2wake_show, bma250_flick2wake_store);
+
+static ssize_t bma250_flick2sleep_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	size_t count = 0;
+
+	count += sprintf(buf, "%d\n", FLICK_SLEEP_ENABLED);
+
+	return count;
+}
+
+static ssize_t bma250_flick2sleep_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	if (buf[0] >= '0' && buf[0] <= '1' && buf[1] == '\n')
+		if (FLICK_SLEEP_ENABLED != buf[0] - '0') {
+			FLICK_SLEEP_ENABLED = buf[0] - '0';
+		}
+
+	printk(KERN_INFO "BMA [FLICK_SLEEP_ENABLED]: %d.\n", FLICK_SLEEP_ENABLED);
+
+	return count;
+}
+
+static DEVICE_ATTR(flick2sleep, (S_IWUSR|S_IRUGO),
+	bma250_flick2sleep_show, bma250_flick2sleep_store);
 
 static ssize_t bma250_pick2wake_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -3500,6 +3527,7 @@ static struct attribute *bma250_attributes[] = {
 #endif
 #ifdef CONFIG_BMA250_WAKE_OPTIONS
 	&dev_attr_flick2wake.attr,
+	&dev_attr_flick2sleep.attr,
 	&dev_attr_f2w_sensitivity.attr,
 	&dev_attr_pick2wake.attr,
 #endif
