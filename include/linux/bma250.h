@@ -755,6 +755,7 @@ struct bma250_platform_data {
 #ifdef CONFIG_BMA250_WAKE_OPTIONS
 /* flick2Wake */
 extern void flick2wake_setdev(struct input_dev * input_device);
+extern void gyroscope_enable(int enable);
 #endif
 
 
