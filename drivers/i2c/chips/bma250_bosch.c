@@ -2367,6 +2367,27 @@ static void bma250_set_enable(struct device *dev, int enable)
 	mutex_unlock(&bma250->enable_mutex);
 
 }
+#ifdef CONFIG_BMA250_WAKE_OPTIONS
+struct device *gyroscope_dev = 0;
+
+extern void gyroscope_enable(int enable) {
+	if (gyroscope_dev == 0) return; // not yet inited
+	if (enable) {
+		if (PICK_WAKE_ENABLED ==1 || FLICK_SLEEP_ENABLED == 1) {
+				struct i2c_client *client = to_i2c_client(gyroscope_dev);
+				struct bma250_data *bma250 = i2c_get_clientdata(client);
+				bma250_set_enable(gyroscope_dev, 1);
+				// set delay to 66, as htc framework, so gyro sleep works fine
+				atomic_set(&bma250->delay, (unsigned int) 66);
+		}
+	} else {
+		if (PICK_WAKE_ENABLED == 0) {
+				bma250_set_enable(gyroscope_dev, 0);
+		}
+	}
+}
+#endif
+
 
 static ssize_t bma250_enable_store(struct device *dev,
 		struct device_attribute *attr,
@@ -3820,6 +3841,9 @@ static int bma250_probe(struct i2c_client *client,
 			&bma250_attribute_group);
 	if (err < 0)
 		goto error_sysfs;
+#ifdef CONFIG_BMA250_WAKE_OPTIONS
+	gyroscope_dev = data->g_sensor_dev;
+#endif
 
 #else 
 
