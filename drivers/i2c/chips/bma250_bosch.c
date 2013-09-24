@@ -2213,6 +2213,41 @@ static ssize_t bma250_f2w_sensitivity_store(struct device *dev,
 static DEVICE_ATTR(f2w_sensitivity, (S_IWUSR|S_IRUGO),
 	bma250_f2w_sensitivity_show, bma250_f2w_sensitivity_store);
 
+static ssize_t bma250_f2w_sensitivity_values_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	size_t count = 0;
+
+	if (FLICK_WAKE_SENSITIVITY == 0) {
+		count += sprintf(buf, "[0] 1\n");
+	} else {
+		count += sprintf(buf, "0 [1]\n");
+	}
+
+	return count;
+}
+
+static ssize_t bma250_f2w_sensitivity_values_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct bma250_data *bma250 = i2c_get_clientdata(client);
+
+	if (buf[0] >= '0' && buf[0] <= '1' && buf[1] == '\n')
+		if (FLICK_WAKE_SENSITIVITY != buf[0] - '0') {
+			FLICK_WAKE_SENSITIVITY = buf[0] - '0';
+		}
+
+	printk(KERN_INFO "BMA [FLICK_WAKE_SENSITIVITY]: %d.\n", FLICK_WAKE_SENSITIVITY);
+	bma250_setup_interrupt_for_wake(bma250);
+
+	return count;
+}
+
+static DEVICE_ATTR(f2w_sensitivity_values, (S_IWUSR|S_IRUGO),
+	bma250_f2w_sensitivity_values_show, bma250_f2w_sensitivity_values_store);
+
+
 static ssize_t bma250_flick2wake_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -3550,6 +3585,7 @@ static struct attribute *bma250_attributes[] = {
 	&dev_attr_flick2wake.attr,
 	&dev_attr_flick2sleep.attr,
 	&dev_attr_f2w_sensitivity.attr,
+	&dev_attr_f2w_sensitivity_values.attr,
 	&dev_attr_pick2wake.attr,
 #endif
 	NULL
