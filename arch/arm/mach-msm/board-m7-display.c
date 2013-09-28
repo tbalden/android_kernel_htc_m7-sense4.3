@@ -254,6 +254,14 @@ static struct lcdc_platform_data dtv_pdata = {
 
 struct mdp_reg *mdp_gamma = NULL;
 int mdp_gamma_count = 0;
+
+struct mdp_reg *get_mdp_gamma(void) {
+	return mdp_gamma;
+}
+int get_mdp_gamma_count(void) {
+	return mdp_gamma_count;
+}
+
 struct mdp_reg mdp_gamma_jdi[] = {
         {0x94800, 0x000000, 0x0},
         {0x94804, 0x000100, 0x0},
@@ -2839,6 +2847,10 @@ static int __init mipi_command_samsung_init(void)
 		set_cabc_Camera_cmds = jdi_samsung_set_cabc_Video_cmds;
 		set_cabc_Camera_cmds_count = ARRAY_SIZE(jdi_samsung_set_cabc_Video_cmds);
 #endif
+//
+		mdp_gamma = mdp_gamma_jdi;
+		mdp_gamma_count = ARRAY_SIZE(mdp_gamma_jdi);
+//
 	} else {
 		strncat(ptype, "PANEL_ID_M7_JDI_SAMSUNG_C2_2", ptype_len);
 		cmd_on_cmds = samsung_jdi_panel_cmd_mode_cmds_c2_2;
@@ -2853,6 +2865,10 @@ static int __init mipi_command_samsung_init(void)
 		set_cabc_Camera_cmds = jdi_samsung_set_cabc_Video_cmds;
 		set_cabc_Camera_cmds_count = ARRAY_SIZE(jdi_samsung_set_cabc_Video_cmds);
 #endif
+//
+		mdp_gamma = mdp_gamma_jdi;
+		mdp_gamma_count = ARRAY_SIZE(mdp_gamma_jdi);
+//
 	}
 
 	display_on_cmds = samsung_display_on_cmds;

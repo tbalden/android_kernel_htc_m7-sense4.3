@@ -82,3 +82,4 @@ obj-$(CONFIG_CABLE_DETECT_8930) += cable_detect_8930.o
 obj-y += time_helper.o
 obj-y += state_helper.o
 obj-y += mako_hotplug_control.o
+obj-$(CONFIG_GAMMA_CONTROL) += gamma_control.o

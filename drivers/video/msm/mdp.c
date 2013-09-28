@@ -2695,6 +2695,7 @@ mdp_write_reg_mask(uint32_t reg, uint32_t val, uint32_t mask)
 
 }
 
+
 void mdp_color_enhancement(const struct mdp_reg *reg_seq, int size)
 {
         int i;
@@ -2713,6 +2714,61 @@ void mdp_color_enhancement(const struct mdp_reg *reg_seq, int size)
 	mdp_clk_ctrl(0);
 
         return ;
+}
+extern struct mdp_reg *get_mdp_gamma(void);
+extern int get_mdp_gamma_count(void);
+
+// gamma control
+void update_vals(
+    unsigned int red_linear_max,
+    unsigned int green_linear_max,
+    unsigned int blue_linear_max,
+
+    unsigned int red_curve_max,
+    unsigned int gree_curve_max,
+    unsigned int blue_curve_max,
+
+    unsigned int red_curve_ratio,
+    unsigned int green_curve_ratio,
+    unsigned int blue_curve_ratio
+    ) {
+
+        int i;
+        int size = get_mdp_gamma_count();
+	struct mdp_reg *reg_seq = get_mdp_gamma();
+
+        unsigned int red = 0;
+        unsigned int green = 0;
+        unsigned int blue = 0;
+        uint32_t val = 0;
+
+        printk(KERN_INFO "%s\n", __func__);
+	printk("gamma_control: size %d\n",size);
+	mdp_clk_ctrl(1);
+	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_ON, FALSE);
+        for (i = 0; i < size; i++) {
+                if (reg_seq[i].mask == 0x0) {
+			red = i*red_linear_max / size / 40 * 100; // 0xff max
+			green = i*green_linear_max / size / 40 * 100; // 0xff max
+			blue = i*blue_linear_max / size / 40 * 100; // 0xff max
+			val = (red << 16) + (green << 8) + blue;
+			printk(KERN_INFO "mpd gamma red %d green %d blue % d -> %d = 0x%08x\n",red,green,blue,i,val);
+                        outpdw(MDP_BASE + reg_seq[i].reg, val);
+                }
+                else {
+			red = i*red_linear_max / size / 40 * 100; // 0xff max
+			green = i*green_linear_max / 40 * 100; // 0xff max
+			blue = i*blue_linear_max / 40 * 100; // 0xff max
+			val = (red << 16) + (green << 8) + blue;
+			printk(KERN_INFO "mpd gamma masked %d = 0x%08x\n",i,val);
+                        mdp_write_reg_mask(reg_seq[i].reg, val, reg_seq[i].mask);
+                }
+        }
+	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_OFF, FALSE);
+	mdp_clk_ctrl(0);
+
+        return ;
+
 }
 
 static int mdp_probe(struct platform_device *pdev)
