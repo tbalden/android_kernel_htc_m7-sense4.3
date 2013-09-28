@@ -100,6 +100,7 @@ static int FLICK_WAKE_MIN_SLEEP_TIME = 0;
 // if phone has been laying around on the table (horizontal still), and gyro turns to mostly vertical for a bit of time, wake phone
 static int PICK_WAKE_ENABLED = 0;
 static int suspended = 1;
+static int screen_on = 1;
 
 static int keep_sensor_on(void)
 {
@@ -1548,6 +1549,8 @@ static void flick_wake_detection_snap(s16 data_x, s16 data_y, s16 data_z)
 {
 	if (PICK_WAKE_ENABLED == 0 && touchscreen_is_on()==0) return;
 
+	if (touchscreen_is_on()==0 && ( jiffies - LAST_SLEEP_TRIGGER_T < ((1+FLICK_WAKE_MIN_SLEEP_TIME)*80) ) ) return;
+
 	if (
 
 	    (FLICK_WAKE_SENSITIVITY == 0 && ((
@@ -2385,6 +2388,10 @@ static void bma250_set_enable(struct device *dev, int enable)
 	int i = 0;
 	
 	printk("BMA set_enable %d\n", enable);
+	if ( ( enable == 0 ) && ( keep_sensor_on() == 1 || (FLICK_SLEEP_ENABLED == 1 && screen_on == 1) ) ) {
+		printk("BMA set_enable %d skipped, wake options need it enabled\n", enable);
+		return;
+	}
 
 	mutex_lock(&bma250->enable_mutex);
 	if (enable) {
@@ -2451,6 +2458,7 @@ struct device *gyroscope_dev = 0;
 extern void gyroscope_enable(int enable) {
 	if (gyroscope_dev == 0) return; // not yet inited
 	if (enable) {
+		screen_on = 1;
 		if (PICK_WAKE_ENABLED ==1 || FLICK_SLEEP_ENABLED == 1) {
 				struct i2c_client *client = to_i2c_client(gyroscope_dev);
 				struct bma250_data *bma250 = i2c_get_clientdata(client);
@@ -2459,6 +2467,7 @@ extern void gyroscope_enable(int enable) {
 				atomic_set(&bma250->delay, (unsigned int) 66);
 		}
 	} else {
+		screen_on = 0;
 		// set last sleep time, because m7-display calls enable(0) when screen is going sleeping
 		// this way, Flick2Wake won't happen after a power button or touchscreen sleep event either
 		LAST_SLEEP_TRIGGER_T = jiffies;
