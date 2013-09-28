@@ -96,6 +96,7 @@ static void bma250_late_resume(struct early_suspend *h);
 static int FLICK_WAKE_ENABLED = 1;
 static int FLICK_SLEEP_ENABLED = 1;
 static int FLICK_WAKE_SENSITIVITY = 1; // 0-1, 0 less sensitive, 1 more sensible
+static int FLICK_WAKE_MIN_SLEEP_TIME = 0;
 // if phone has been laying around on the table (horizontal still), and gyro turns to mostly vertical for a bit of time, wake phone
 static int PICK_WAKE_ENABLED = 0;
 static int suspended = 1;
@@ -1594,7 +1595,7 @@ static void flick_wake_detection_snap(s16 data_x, s16 data_y, s16 data_z)
 // used to react on snap in sleep mode, through IRQ work calling this
 static void flick_wake_detection_snap_irq(s16 data_x, s16 data_y, s16 data_z)
 {
-	if (jiffies - LAST_SLEEP_TRIGGER_T < 80) return;
+	if (jiffies - LAST_SLEEP_TRIGGER_T < ((1+FLICK_WAKE_MIN_SLEEP_TIME)*80) ) return;
 	if (touchscreen_is_on()==1) return;
 	if (1) {
 			printk("BMA - =============== 3 FLICK SNAP DONE - POWER ON =====================\n");
@@ -2182,6 +2183,48 @@ static ssize_t bma250_enable_show(struct device *dev,
 #ifdef CONFIG_BMA250_WAKE_OPTIONS
 
 static ssize_t bma250_setup_interrupt_for_wake(struct bma250_data *bma250);
+
+static int MIN_SLEEP_TIME_MAX = 5;
+static char MIN_SLEEP_TIME_MAX_C = '5';
+
+static ssize_t bma250_f2w_min_sleep_time_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	size_t count = 0;
+	int time_scale = 0;
+
+	while (1) {
+		if (time_scale == FLICK_WAKE_MIN_SLEEP_TIME) {
+			count += sprintf(&buf[count], "[%d] ", time_scale);
+		} else {
+			count += sprintf(&buf[count], "%d ", time_scale);
+		}
+		if (++time_scale > MIN_SLEEP_TIME_MAX) {
+			count += sprintf(&buf[count], "\n");
+			break;
+		}
+	}
+	return count;
+}
+
+static ssize_t bma250_f2w_min_sleep_time_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+
+	if (buf[0] >= '0' && buf[0] <= MIN_SLEEP_TIME_MAX_C && buf[1] == '\n')
+		if (FLICK_WAKE_MIN_SLEEP_TIME != buf[0] - '0') {
+			FLICK_WAKE_MIN_SLEEP_TIME = buf[0] - '0';
+		}
+	if (FLICK_WAKE_MIN_SLEEP_TIME<0) FLICK_WAKE_MIN_SLEEP_TIME = 0;
+	if (FLICK_WAKE_MIN_SLEEP_TIME>MIN_SLEEP_TIME_MAX) FLICK_WAKE_MIN_SLEEP_TIME = MIN_SLEEP_TIME_MAX;
+	printk(KERN_INFO "BMA [FLICK_WAKE_MIN_SLEEP_TIME]: %d.\n", FLICK_WAKE_MIN_SLEEP_TIME);
+
+	return count;
+}
+
+static DEVICE_ATTR(f2w_min_sleep_time, (S_IWUSR|S_IRUGO),
+	bma250_f2w_min_sleep_time_show, bma250_f2w_min_sleep_time_store);
+
 
 static ssize_t bma250_f2w_sensitivity_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -3584,6 +3627,7 @@ static struct attribute *bma250_attributes[] = {
 #ifdef CONFIG_BMA250_WAKE_OPTIONS
 	&dev_attr_flick2wake.attr,
 	&dev_attr_flick2sleep.attr,
+	&dev_attr_f2w_min_sleep_time.attr,
 	&dev_attr_f2w_sensitivity.attr,
 	&dev_attr_f2w_sensitivity_values.attr,
 	&dev_attr_pick2wake.attr,
