@@ -2471,9 +2471,9 @@ extern void gyroscope_enable(int enable) {
 		// set last sleep time, because m7-display calls enable(0) when screen is going sleeping
 		// this way, Flick2Wake won't happen after a power button or touchscreen sleep event either
 		LAST_SLEEP_TRIGGER_T = jiffies;
-		if (PICK_WAKE_ENABLED == 0) {
-				bma250_set_enable(gyroscope_dev, 0);
-		}
+//		if (PICK_WAKE_ENABLED == 0) {
+//				bma250_set_enable(gyroscope_dev, 0);
+//		}
 	}
 }
 #endif
