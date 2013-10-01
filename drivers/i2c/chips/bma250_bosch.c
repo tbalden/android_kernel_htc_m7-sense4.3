@@ -2377,6 +2377,8 @@ static ssize_t bma250_pick2wake_store(struct device *dev,
 static DEVICE_ATTR(pick2wake, (S_IWUSR|S_IRUGO),
 	bma250_pick2wake_show, bma250_pick2wake_store);
 
+static unsigned int SET_ENABLE_0_CALLED_T = 0;
+
 #endif
 
 
@@ -2387,11 +2389,14 @@ static void bma250_set_enable(struct device *dev, int enable)
 	int pre_enable = atomic_read(&bma250->enable);
 	int i = 0;
 	
+#ifdef CONFIG_BMA250_WAKE_OPTIONS
 	printk("BMA set_enable %d\n", enable);
 	if ( ( enable == 0 ) && ( keep_sensor_on() == 1 || (FLICK_SLEEP_ENABLED == 1 && screen_on == 1) ) ) {
 		printk("BMA set_enable %d skipped, wake options need it enabled\n", enable);
+		SET_ENABLE_0_CALLED_T = jiffies;
 		return;
 	}
+#endif
 
 	mutex_lock(&bma250->enable_mutex);
 	if (enable) {
@@ -2471,9 +2476,16 @@ extern void gyroscope_enable(int enable) {
 		// set last sleep time, because m7-display calls enable(0) when screen is going sleeping
 		// this way, Flick2Wake won't happen after a power button or touchscreen sleep event either
 		LAST_SLEEP_TRIGGER_T = jiffies;
-//		if (PICK_WAKE_ENABLED == 0) {
-//				bma250_set_enable(gyroscope_dev, 0);
-//		}
+		if (PICK_WAKE_ENABLED == 0) {
+			if (jiffies - SET_ENABLE_0_CALLED_T < 80) {
+				// if SET_ENABLE_0_CALLED_T is very close to current jiffies, it means that it's not an in call mipi power off,
+				// but a normal screen off, which should really turn off gyroscope, instead of the skipping done when the
+				// screen was yet on (bma250_set_enable(0) sometimes is called BEFORE the actual Mipi power off, that's
+				// why this is needed, to prevent wakelocks happening)
+				printk("BMA - gyroscope_enable 0 - very close to last skipped userspace bma250_enable(0) call - disable screen this time\n");
+				bma250_set_enable(gyroscope_dev, 0);
+			}
+		}
 	}
 }
 #endif
