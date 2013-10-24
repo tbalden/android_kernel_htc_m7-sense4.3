@@ -1,4 +1,4 @@
-android_kernel_htc_m7-sense4.3
+SKYDragon Kernel
 ==============================
 
-android_kernel_htc_m7-sense4.3
+

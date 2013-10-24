@@ -551,7 +551,6 @@ static void __init apq8064_reserve_fixed_area(unsigned long fixed_area_size)
 {
 #if defined(CONFIG_ION_MSM) && defined(CONFIG_MSM_MULTIMEDIA_USE_ION)
 	int ret;
-
 	if (fixed_area_size > MAX_FIXED_AREA_SIZE)
 		panic("fixed area size is larger than %dM\n",
 			MAX_FIXED_AREA_SIZE >> 20);
@@ -1496,12 +1495,6 @@ static struct i2c_board_info msm_i2c_mhl_sii9234_info[] =
 static struct msm_bus_vectors hsic_init_vectors[] = {
        {
                .src = MSM_BUS_MASTER_SPS,
-               .dst = MSM_BUS_SLAVE_EBI_CH0,
-               .ab = 0,
-               .ib = 0,
-       },
-       {
-               .src = MSM_BUS_MASTER_SPS,
                .dst = MSM_BUS_SLAVE_SPS,
                .ab = 0,
                .ib = 0,
@@ -1511,15 +1504,9 @@ static struct msm_bus_vectors hsic_init_vectors[] = {
 static struct msm_bus_vectors hsic_max_vectors[] = {
        {
                .src = MSM_BUS_MASTER_SPS,
-               .dst = MSM_BUS_SLAVE_EBI_CH0,
-               .ab = 60000000,         
-               .ib = 960000000,        
-       },
-       {
-               .src = MSM_BUS_MASTER_SPS,
                .dst = MSM_BUS_SLAVE_SPS,
                .ab = 0,
-               .ib = 512000000, 
+               .ib = 256000000, 
        },
 };
 
@@ -3730,10 +3717,6 @@ static struct platform_device msm_tsens_device = {
 
 static struct msm_thermal_data msm_thermal_pdata = {
 	.sensor_id = 0,
-	.poll_ms = 1000,
-	.limit_temp = 51,
-	.temp_hysteresis = 10,
-	.limit_freq = 918000,
 };
 
 static int __init check_dq_setup(char *str)
@@ -5400,6 +5383,17 @@ static void __init m7_common_init(void)
 
 static void __init m7_allocate_memory_regions(void)
 {
+#ifdef CONFIG_KEXEC_HARDBOOT
+	// Reserve space for hardboot page at the end of first system ram block
+	struct membank* bank = &meminfo.bank[0];
+	phys_addr_t start = bank->start + bank->size - SZ_1M;
+	int ret = memblock_remove(start, SZ_1M);
+	if(!ret)
+		pr_info("Hardboot page reserved at 0x%X\n", start);
+	else
+		pr_err("Failed to reserve space for hardboot page at 0x%X!\n", start);
+#endif
+
 	m7_allocate_fb_region();
 }
 
