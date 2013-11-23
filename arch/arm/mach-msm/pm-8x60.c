@@ -127,12 +127,12 @@ extern int board_mfg_mode(void);
 #ifdef CONFIG_APQ8064_ONLY 
 extern unsigned long acpuclk_krait_power_collapse(void);
 #endif
-#if defined(CONFIG_MACH_DUMMY) || defined(CONFIG_MACH_DUMMY) || defined(CONFIG_MACH_DUMMY) || defined(CONFIG_MACH_DUMMY)
-extern int dlp_ext_buck_en(int);
-#endif
 #define CPU_FOOT_PRINT_MAGIC				0xACBDFE00
 #define CPU_FOOT_PRINT_MAGIC_SPC			0xACBDAA00
 #define CPU_FOOT_PRINT_BASE_CPU0_VIRT		(CPU_FOOT_PRINT_BASE + 0x0)
+
+#define HTC_AUDIO_SYS_RESET_COUNT_VA		(CPU_FOOT_PRINT_BASE + 0xAC)
+#define HTC_AUDIO_SYS_RESET_COUNT_MAGIC		0xACBDFE00
 
 static void init_cpu_foot_print(unsigned cpu, bool notify_rpm)
 {
@@ -174,6 +174,49 @@ static void store_pm_boot_vector_addr(unsigned value)
 	*addr = (unsigned)value;
 	mb();
 }
+
+bool is_audio_sys_reset_count_valid(void)
+{
+	volatile unsigned int *pcnt;
+	pcnt = (volatile unsigned int*)HTC_AUDIO_SYS_RESET_COUNT_VA;
+
+	if (HTC_AUDIO_SYS_RESET_COUNT_MAGIC == (0xFFFFFF00 & (*pcnt)))
+		return true;
+	else
+		return false;
+}
+EXPORT_SYMBOL(is_audio_sys_reset_count_valid);
+
+void audio_sys_reset_count_init(void)
+{
+	volatile unsigned int *pcnt;
+	pcnt = (volatile unsigned int*)HTC_AUDIO_SYS_RESET_COUNT_VA;
+
+	*pcnt = HTC_AUDIO_SYS_RESET_COUNT_MAGIC;
+	mb();
+}
+EXPORT_SYMBOL(audio_sys_reset_count_init);
+
+void audio_sys_reset_count_set(unsigned char data)
+{
+	volatile unsigned char *pcnt;
+	pcnt = (volatile unsigned char*)HTC_AUDIO_SYS_RESET_COUNT_VA;
+
+	*pcnt = data; 
+	mb();
+}
+EXPORT_SYMBOL(audio_sys_reset_count_set);
+
+unsigned char audio_sys_reset_count_get(void)
+{
+	volatile unsigned char *pcnt;
+	pcnt = (volatile unsigned char*)HTC_AUDIO_SYS_RESET_COUNT_VA;
+
+	return (*pcnt); 
+}
+
+EXPORT_SYMBOL(audio_sys_reset_count_get);
+
 
 enum {
 	MSM_PM_MODE_ATTR_SUSPEND,
@@ -1182,9 +1225,6 @@ static int msm_pm_enter(suspend_state_t state)
 	uint64_t xo_shutdown_time, vdd_min_time;
 	int collapsed;
 
-#if defined(CONFIG_MACH_DUMMY) || defined(CONFIG_MACH_DUMMY) || defined(CONFIG_MACH_DUMMY) || defined(CONFIG_MACH_DUMMY)
-	dlp_ext_buck_en(0);
-#endif
 	if (MSM_PM_DEBUG_SUSPEND & msm_pm_debug_mask)
 		pr_info("%s\n", __func__);
 
@@ -1359,10 +1399,6 @@ static int msm_pm_enter(suspend_state_t state)
 
 
 enter_exit:
-
-#if defined(CONFIG_MACH_DUMMY) || defined(CONFIG_MACH_DUMMY) || defined(CONFIG_MACH_DUMMY) || defined(CONFIG_MACH_DUMMY)
-	dlp_ext_buck_en(1);
-#endif
 	if (MSM_PM_DEBUG_SUSPEND & msm_pm_debug_mask)
 		pr_info("%s: return\n", __func__);
 

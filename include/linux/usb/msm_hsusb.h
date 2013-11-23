@@ -115,7 +115,6 @@ struct msm_otg_platform_data {
 	char *ldo_1v8_name;
 	char *vddcx_name;
 	bool disable_reset_on_disconnect;
-	bool enable_dcd;
 	bool enable_lpm_on_dev_suspend;
 	bool core_clk_always_on_workaround;
 	struct msm_bus_scale_pdata *bus_scale_table;
@@ -216,6 +215,7 @@ struct msm_otg {
 	int connect_type_ready;
 	struct workqueue_struct *usb_wq;
 	struct delayed_work ac_detect_work;
+	struct work_struct usb_disable_work;
 	int ac_detect_count;
 	int reset_phy_before_lpm;
 	int reset_counter;

@@ -133,7 +133,6 @@ static inline void dc_add_byte_packets(struct data_counters *counters, int set,
 	counters->bpc[set][direction][ifs_proto].packets += packets;
 }
 
-
 static struct tag_node *tag_node_tree_search(struct rb_root *root, tag_t tag)
 {
 	struct rb_node *node = root->rb_node;

@@ -549,9 +549,13 @@ static int kgsl_pwrctrl_gpubusy_show(struct device *dev,
 					struct device_attribute *attr,
 					char *buf)
 {
-	int ret;
+	int ret = -EINVAL;
 	struct kgsl_device *device = kgsl_device_from_dev(dev);
 	struct kgsl_clk_stats *clkstats = &device->pwrctrl.clk_stats;
+
+	if (clkstats == NULL)
+		return ret;
+
 	ret = snprintf(buf, PAGE_SIZE, "%7d %7d\n",
 			clkstats->on_time_old, clkstats->elapsed_old);
 	if (!test_bit(KGSL_PWRFLAGS_AXI_ON, &device->pwrctrl.power_flags)) {
@@ -587,10 +591,20 @@ static int kgsl_pwrctrl_gpubusy_time_in_state_show(struct device *dev,
 {
 	int i;
 	char* tmp = buf;
-	struct kgsl_device *device = kgsl_device_from_dev(dev);
-	struct platform_device *pdev = container_of(device->parentdev, struct platform_device, dev);
-	struct kgsl_device_platform_data *pdata = pdev->dev.platform_data;
+	struct kgsl_device *device = NULL;
+	struct platform_device *pdev = NULL;
+	struct kgsl_device_platform_data *pdata = NULL;
 	s64 system_time, busy_time;
+
+	device = kgsl_device_from_dev(dev);
+	if (device == NULL)
+		return 0;
+	pdev = container_of(device->parentdev, struct platform_device, dev);
+	if (pdev == NULL)
+		return 0;
+	pdata = pdev->dev.platform_data;
+	if (pdata == NULL)
+		return 0;
 
 	for(i=0;i<pdata->num_levels;i++) {
 		system_time = device->gputime_in_state[i].total;
@@ -608,11 +622,14 @@ static int kgsl_pwrctrl_gputop_show(struct device *dev,
 					struct device_attribute *attr,
 					char *buf)
 {
-	int ret;
+	int ret = -EINVAL;
 	struct kgsl_device *device = kgsl_device_from_dev(dev);
 	struct kgsl_clk_stats *clkstats = &device->pwrctrl.clk_stats;
 	int i = 0;
 	char *ptr = buf;
+
+	if (clkstats == NULL)
+		return ret;
 
 	ret = snprintf(buf, PAGE_SIZE, "%7d %7d ", clkstats->on_time_old,
 					clkstats->elapsed_old);
@@ -654,6 +671,8 @@ static int kgsl_pwrctrl_reset_count_show(struct device *dev,
 					char *buf)
 {
 	struct kgsl_device *device = kgsl_device_from_dev(dev);
+	if (device == NULL)
+		return 0;
 	return snprintf(buf, PAGE_SIZE, "%d\n", device->reset_counter);
 }
 
@@ -748,7 +767,8 @@ static void update_statistics(struct kgsl_device *device)
 	struct kgsl_clk_stats *clkstats = &device->pwrctrl.clk_stats;
 	unsigned int on_time = 0;
 	int i;
-	int num_pwrlevels = device->pwrctrl.num_pwrlevels - 1;
+	int num_pwrlevels = (device->pwrctrl.num_pwrlevels<KGSL_MAX_PWRLEVELS)? device->pwrctrl.num_pwrlevels - 1: KGSL_MAX_PWRLEVELS - 1;
+
 	
 	for (i = 0; i < num_pwrlevels; i++) {
 		clkstats->old_clock_time[i] = clkstats->clock_time[i];

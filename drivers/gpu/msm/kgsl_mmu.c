@@ -73,6 +73,7 @@ static int kgsl_setup_pt(struct kgsl_pagetable *pt)
 	}
 	return status;
 error_pt:
+	i = (i < KGSL_DEVICE_MAX)? i : KGSL_DEVICE_MAX - 1;
 	while (i >= 0) {
 		struct kgsl_device *device = kgsl_driver.devp[i];
 		if (device)
@@ -653,8 +654,10 @@ kgsl_mmu_get_gpuaddr(struct kgsl_pagetable *pagetable,
 		if (memdesc->gpuaddr == 0) {
 			if (pagetable->name != KGSL_MMU_GLOBAL_PT && pagetable->name != KGSL_MMU_PRIV_BANK_TABLE_NAME) {
 				task = find_task_by_pid_ns(pagetable->name, &init_pid_ns);
-				task = task->group_leader;
-				get_task_comm(task_comm, task);
+				if(task != NULL) {
+					task = task->group_leader;
+					get_task_comm(task_comm, task);
+				}
 			}
 
 			KGSL_CORE_ERR("gen_pool_alloc(%d) failed, pool: %s\n",

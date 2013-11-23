@@ -207,6 +207,9 @@ static void gbam_write_data_tohost(struct gbam_port *port)
 			req->no_interrupt = 1;
 		}
 
+		
+		req->zero = 1;
+
 		list_del(&req->list);
 
 		spin_unlock(&port->port_lock_dl);

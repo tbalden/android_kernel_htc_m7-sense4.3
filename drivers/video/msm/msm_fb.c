@@ -126,6 +126,7 @@ static int mdp_bl_scale_config(struct msm_fb_data_type *mfd,
 static void msm_fb_commit_wq_handler(struct work_struct *work);
 static int msm_fb_pan_idle(struct msm_fb_data_type *mfd);
 static void msm_fb_scale_bl(__u32 *bl_lvl);
+void msm_fb_shutdown(struct platform_device *pdev);
 
 #ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
 #define NUM_ALLOC 3
@@ -861,17 +862,17 @@ static int msm_fb_remove(struct platform_device *pdev)
 
 	mfd = (struct msm_fb_data_type *)platform_get_drvdata(pdev);
 
-	msm_fb_pan_idle(mfd);
-
-	msm_fb_remove_sysfs(pdev);
-
-	pm_runtime_disable(mfd->fbi->dev);
-
 	if (!mfd)
 		return -ENODEV;
 
 	if (mfd->key != MFD_KEY)
 		return -EINVAL;
+
+	msm_fb_pan_idle(mfd);
+
+	msm_fb_remove_sysfs(pdev);
+
+	pm_runtime_disable(mfd->fbi->dev);
 
 	if (msm_fb_suspend_sub(mfd))
 		printk(KERN_ERR "msm_fb_remove: can't stop the device %d\n", mfd->index);
@@ -948,6 +949,18 @@ static int msm_fb_suspend(struct platform_device *pdev, pm_message_t state)
 }
 #else
 #define msm_fb_suspend NULL
+void msm_fb_shutdown(struct platform_device *pdev)
+{
+	struct msm_fb_data_type *mfd = platform_get_drvdata(pdev);
+
+	if ((!mfd) || (mfd->key != MFD_KEY))
+		return;
+
+	for (; mfd->ref_cnt > 1; mfd->ref_cnt--)
+		pm_runtime_put(mfd->fbi->dev);
+
+	msm_fb_release(mfd->fbi, 0);
+}
 #endif
 
 static int msm_fb_suspend_sub(struct msm_fb_data_type *mfd)
@@ -1162,7 +1175,7 @@ static struct platform_driver msm_fb_driver = {
 	.suspend = msm_fb_suspend,
 	.resume = msm_fb_resume,
 #endif
-	.shutdown = NULL,
+	.shutdown = msm_fb_shutdown,
 	.driver = {
 		   
 		   .name = "msm_fb",
@@ -1253,6 +1266,7 @@ static void msmfb_onchg_suspend(struct early_suspend *h)
 {
 	struct msm_fb_data_type *mfd = container_of(h, struct msm_fb_data_type,
 						    onchg_suspend);
+	msm_fb_pan_idle(mfd);
 #ifdef CONFIG_FB_MSM_MDP303
 	struct fb_info *fbi = mfd->fbi;
 	switch (mfd->fbi->var.bits_per_pixel) {
@@ -1266,6 +1280,7 @@ static void msmfb_onchg_suspend(struct early_suspend *h)
 	}
 #endif
 	MSM_FB_INFO("%s starts.\n", __func__);
+
 	msm_fb_suspend_sub(mfd);
 	mdp_suspended = true;
 	MSM_FB_INFO("%s is done.\n", __func__);
@@ -1276,7 +1291,15 @@ static void msmfb_onchg_resume(struct early_suspend *h)
 						    onchg_suspend);
 
 	MSM_FB_INFO("%s starts.\n", __func__);
+	msm_fb_pan_idle(mfd);
 	msm_fb_resume_sub(mfd);
+
+	if (mfd->panel_info.pdest == DISPLAY_1) {
+		struct fb_info *info = mfd->fbi;
+		msm_fb_blank_sub(FB_BLANK_UNBLANK, info,
+			mfd->op_enable);
+	}
+
 	mdp_suspended = false;
 	MSM_FB_INFO("%s is done.\n", __func__);
 }
@@ -2598,7 +2621,7 @@ static void msm_fb_commit_wq_handler(struct work_struct *work)
 		struct msm_fb_panel_data
 		*pdata = (struct msm_fb_panel_data *)mfd->pdev->
 			dev.platform_data;
-		if ((pdata) && (pdata->set_backlight)) {
+		if ((pdata) && (pdata->set_backlight) && mfd->panel_power_on) {
 			down(&mfd->sem);
 			mfd->bl_level = unset_bl_level;
 			pdata->set_backlight(mfd);
@@ -2612,6 +2635,20 @@ static void msm_fb_commit_wq_handler(struct work_struct *work)
 	mfd->is_committing = 0;
 	complete_all(&mfd->commit_comp);
 	mutex_unlock(&mfd->sync_mutex);
+
+#ifdef CONFIG_FB_MSM_CABC_LEVEL_CONTROL
+        if (cabc_level_ctl_status_old != cabc_level_ctl_status) {
+		struct msm_fb_panel_data
+                *pdata = (struct msm_fb_panel_data *)mfd->pdev->
+                        dev.platform_data;
+                if ((pdata) && (pdata->set_cabc)) {
+                        down(&mfd->sem);
+                        pdata->set_cabc(mfd, cabc_level_ctl_status);
+                        cabc_level_ctl_status_old = cabc_level_ctl_status;
+                        up(&mfd->sem);
+                }
+        }
+#endif
 
 }
 
@@ -4946,5 +4983,17 @@ int msm_fb_v4l2_update(void *par,
 #endif
 }
 EXPORT_SYMBOL(msm_fb_v4l2_update);
+
+int msm_fb_mixer_pan_idle(DISP_TARGET_PHYS pdest)
+{
+	size_t i;
+	for (i = 0; i < mfd_list_index; ++i) {
+		struct msm_fb_data_type *mfd = mfd_list[i];
+		if (mfd->panel_info.pdest == pdest)
+			return msm_fb_pan_idle(mfd);
+	}
+	return 0;
+}
+EXPORT_SYMBOL(msm_fb_mixer_pan_idle);
 
 module_init(msm_fb_init);

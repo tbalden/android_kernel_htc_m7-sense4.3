@@ -39,7 +39,7 @@
 #define MAX_PRIME_CHECK_RETRY  3 
 
 static DEFINE_SPINLOCK(udc_lock);
-
+extern int USB_disabled;
 static const struct usb_endpoint_descriptor
 ctrl_endpt_out_desc = {
 	.bLength         = USB_DT_ENDPOINT_SIZE,
@@ -212,14 +212,17 @@ static int hw_device_init(void __iomem *base)
 }
 static int hw_device_reset(struct ci13xxx *udc)
 {
+	int delay_count = 25; 
+
 	
 	hw_cwrite(CAP_ENDPTFLUSH, ~0, ~0);
 	hw_cwrite(CAP_USBCMD, USBCMD_RS, 0);
 
 	hw_cwrite(CAP_USBCMD, USBCMD_RST, USBCMD_RST);
-	while (hw_cread(CAP_USBCMD, USBCMD_RST))
-		udelay(10);             
-
+	while (delay_count--  && hw_cread(CAP_USBCMD, USBCMD_RST))
+		udelay(10);
+	if (delay_count < 0)
+		pr_err("USB controller reset failed\n");
 
 	if (udc->udc_driver->notify_event)
 		udc->udc_driver->notify_event(udc,
@@ -516,6 +519,8 @@ static int hw_usb_set_address(u8 value)
 
 static int hw_usb_reset(void)
 {
+	int delay_count = 10; 
+
 	hw_usb_set_address(0);
 
 	
@@ -528,8 +533,10 @@ static int hw_usb_reset(void)
 	hw_cwrite(CAP_ENDPTCOMPLETE,  0,  0);   
 
 	
-	while (hw_cread(CAP_ENDPTPRIME, ~0))
-		udelay(10);             
+	while (delay_count-- && hw_cread(CAP_ENDPTPRIME, ~0))
+		udelay(10);
+	if (delay_count < 0)
+		pr_err("ENDPTPRIME is not cleared during bus reset\n");
 
 	
 
@@ -1338,7 +1345,7 @@ static inline u8 _usb_addr(struct ci13xxx_ep *ep)
 static void usb_chg_stop(struct work_struct *w)
 {
 	USB_INFO("disable charger\n");
-	htc_battery_charger_disable();
+	htc_battery_pwrsrc_disable();
 }
 
 static void ep_prime_timer_func(unsigned long data)
@@ -2207,6 +2214,7 @@ static int ep_enable(struct usb_ep *ep,
 	struct ci13xxx_ep *mEp = container_of(ep, struct ci13xxx_ep, ep);
 	int retval = 0;
 	unsigned long flags;
+	unsigned mult = 0;
 
 	trace("%p, %p", ep, desc);
 
@@ -2232,12 +2240,15 @@ static int ep_enable(struct usb_ep *ep,
 
 	mEp->qh.ptr->cap = 0;
 
-	if (mEp->type == USB_ENDPOINT_XFER_CONTROL)
+	if (mEp->type == USB_ENDPOINT_XFER_CONTROL) {
 		mEp->qh.ptr->cap |=  QH_IOS;
-	else if (mEp->type == USB_ENDPOINT_XFER_ISOC)
+	} else if (mEp->type == USB_ENDPOINT_XFER_ISOC) {
 		mEp->qh.ptr->cap &= ~QH_MULT;
-	else
+		mult = ((mEp->ep.maxpacket >> QH_MULT_SHIFT) + 1) & 0x03;
+		mEp->qh.ptr->cap |= (mult << ffs_nr(QH_MULT));
+	} else {
 		mEp->qh.ptr->cap |= QH_ZLT;
+	}
 
 	mEp->qh.ptr->cap |=
 		(mEp->ep.maxpacket << ffs_nr(QH_MAX_PKT)) & QH_MAX_PKT;
@@ -2286,6 +2297,7 @@ static int ep_disable(struct usb_ep *ep)
 
 	mEp->desc = NULL;
 	mEp->ep.desc = NULL;
+	mEp->ep.maxpacket = USHRT_MAX;
 
 	spin_unlock_irqrestore(mEp->lock, flags);
 	return retval;
@@ -2556,6 +2568,17 @@ static void ep_fifo_flush(struct usb_ep *ep)
 	spin_unlock_irqrestore(mEp->lock, flags);
 }
 
+static void ep_nuke(struct usb_ep *ep)
+{
+	struct ci13xxx_ep  *mEp  = container_of(ep,  struct ci13xxx_ep, ep);
+	struct ci13xxx *udc = _udc;
+	unsigned long flags;
+
+	spin_lock_irqsave(udc->lock, flags);
+	_ep_nuke(mEp);
+	spin_unlock_irqrestore(udc->lock, flags);
+}
+
 static const struct usb_ep_ops usb_ep_ops = {
 	.enable	       = ep_enable,
 	.disable       = ep_disable,
@@ -2566,6 +2589,7 @@ static const struct usb_ep_ops usb_ep_ops = {
 	.set_halt      = ep_set_halt,
 	.set_wedge     = ep_set_wedge,
 	.fifo_flush    = ep_fifo_flush,
+	.nuke          = ep_nuke,
 };
 
 static int ci13xxx_vbus_session(struct usb_gadget *_gadget, int is_active)
@@ -2727,7 +2751,8 @@ static int ci13xxx_start(struct usb_gadget_driver *driver,
 
 			mEp->ep.name      = mEp->name;
 			mEp->ep.ops       = &usb_ep_ops;
-			mEp->ep.maxpacket = CTRL_PAYLOAD_MAX;
+			mEp->ep.maxpacket =
+				k ? USHRT_MAX : CTRL_PAYLOAD_MAX;
 
 			INIT_LIST_HEAD(&mEp->qh.queue);
 			spin_unlock_irqrestore(udc->lock, flags);
@@ -2893,7 +2918,17 @@ static irqreturn_t udc_irq(void)
 		if (USBi_URI & intr) {
 			USB_INFO("reset\n");
 			isr_statistics.uri++;
-			isr_reset_handler(udc);
+
+			if (board_mfg_mode() == 5 || USB_disabled) {
+				USB_INFO("Offmode / QuickBootMode\n");
+				spin_unlock(udc->lock);
+				if (udc->transceiver)
+					udc->transceiver->notify_usb_disabled();
+				spin_lock(udc->lock);
+				isr_reset_handler(udc);
+			} else {
+				isr_reset_handler(udc);
+			}
 
 			if (udc->transceiver)
 				udc->transceiver->notify_usb_attached();

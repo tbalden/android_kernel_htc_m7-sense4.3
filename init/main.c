@@ -74,7 +74,7 @@
 #include <asm/setup.h>
 #include <asm/sections.h>
 #include <asm/cacheflush.h>
-
+#include <asm/asm_code_footprint.h>
 #ifdef CONFIG_X86_LOCAL_APIC
 #include <asm/smp.h>
 #endif
@@ -345,6 +345,8 @@ static noinline void __init_refok rest_init(void)
 	int pid;
 	const struct sched_param param = { .sched_priority = 1 };
 
+	asm_code_footprint();
+
 	rcu_scheduler_starting();
 	kernel_thread(kernel_init, NULL, CLONE_FS | CLONE_SIGHAND);
 	numa_default_policy();
@@ -431,6 +433,8 @@ asmlinkage void __init start_kernel(void)
 {
 	char * command_line;
 	extern const struct kernel_param __start___param[], __stop___param[];
+
+	asm_code_footprint();
 
 	lockdep_init();
 	smp_setup_processor_id();

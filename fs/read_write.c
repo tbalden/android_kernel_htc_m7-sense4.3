@@ -19,6 +19,9 @@
 
 #include <asm/uaccess.h>
 #include <asm/unistd.h>
+#include <mach/board_htc.h>
+#include <htc_debug/stability/dirty_file_detector.h>
+#include <mach/restart.h>
 
 const struct file_operations generic_ro_fops = {
 	.llseek		= generic_file_llseek,
@@ -404,19 +407,98 @@ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 	return ret;
 }
 
+static int current_task_is_system_server_binder(void)
+{
+	int ret = 0;
+
+	if (!strncmp(current->comm, "Binder", strlen("Binder"))) {
+		if (current->group_leader) {
+			if (!strncmp(current->group_leader->comm,
+					"system_server", TASK_COMM_LEN))
+				ret = 1;
+		}
+	}
+
+	return ret;
+}
+
+#define WRITE_TIMEOUT_VALUE 5
+static void vfs_write_timeout(unsigned long data)
+{
+	WARN(1, "'%s: write timed out after %d seconds! function: %pf\n",
+		__func__, WRITE_TIMEOUT_VALUE, (void *)data);
+	pr_info("### Show Blocked State ###\n");
+	show_state_filter(TASK_UNINTERRUPTIBLE);
+	pr_info("### Show System Server State ###\n");
+	show_thread_group_state_filter("system_server", 0);
+	pr_info("### Show bugreport State ###\n");
+	show_thread_group_state_filter("bugreport", 0);
+	pr_info("### Show adbd State ###\n");
+	show_thread_group_state_filter("adbd", 0);
+}
+
 SYSCALL_DEFINE3(write, unsigned int, fd, const char __user *, buf,
 		size_t, count)
 {
 	struct file *file;
 	ssize_t ret = -EBADF;
 	int fput_needed;
+#ifdef CONFIG_DIRTY_SYSTEM_DETECTOR
+	struct mount *mnt;
+#endif
 
 	file = fget_light(fd, &fput_needed);
+
+#ifdef CONFIG_DIRTY_SYSTEM_DETECTOR
+	
+	
+	if (!get_tamper_sf() && file != NULL) {
+		if (!strstr(hashed_command_line, "androidboot.mode=recovery")
+				&& strcmp("htcunzip", current->comm)) {
+			mnt = real_mount(file->f_path.mnt);
+			if (!strcmp("system",  mnt->mnt_mountpoint->d_name.name)) {
+				printk("%s to /system partition: file(%s)\n", __func__, file->f_path.dentry->d_name.name);
+				mark_system_dirty(file->f_path.dentry->d_name.name);
+			}
+		}
+	}
+#endif
+
 	if (file) {
+		struct timer_list timer;
 		loff_t pos = file_pos_read(file);
+
+		
+		if (current_task_is_system_server_binder()) {
+			init_timer_on_stack(&timer);
+			timer.function = vfs_write_timeout;
+			timer.expires = jiffies + HZ * WRITE_TIMEOUT_VALUE;
+			if (file->f_op) {
+				if (file->f_op->write)
+					timer.data = (unsigned long)file->f_op->write;
+				else
+					timer.data = (unsigned long)file->f_op->aio_write;
+			}
+			add_timer(&timer);
+		}
+
 		ret = vfs_write(file, buf, count, &pos);
+
+		if (current_task_is_system_server_binder()) {
+			del_timer_sync(&timer);
+			destroy_timer_on_stack(&timer);
+		}
+
 		file_pos_write(file, pos);
 		fput_light(file, fput_needed);
+	}
+
+	
+	if (ret < 0 && file && file->f_op &&
+		current_task_is_system_server_binder()) {
+		pr_info("%s: %s(%d) ret: %d, write: %pf, aio_write: %pf\n",
+			__func__, current->comm, current->pid, ret,
+			file->f_op->write, file->f_op->aio_write);
 	}
 
 	return ret;

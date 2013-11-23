@@ -324,6 +324,17 @@ void msm_restart(char mode, const char *cmd)
 		set_restart_to_oem(code, NULL);
 	} else if (!strncmp(cmd, "force-dog-bark", 14)) {
 		set_restart_to_ramdump("force-dog-bark");
+	} else if (!strncmp(cmd, "force-hard", 10) ||
+			(RESTART_MODE_LEGECY < mode && mode < RESTART_MODE_MAX)
+			) {
+		
+		if (mode == RESTART_MODE_MODEM_USER_INVOKED)
+			set_restart_action(RESTART_REASON_REBOOT, NULL);
+		else if (mode == RESTART_MODE_ERASE_EFS)
+			set_restart_action(RESTART_REASON_ERASE_EFS, NULL);
+		else {
+			set_restart_action(RESTART_REASON_RAMDUMP, cmd);
+		}
 	} else {
 		set_restart_action(RESTART_REASON_REBOOT, NULL);
 	}
