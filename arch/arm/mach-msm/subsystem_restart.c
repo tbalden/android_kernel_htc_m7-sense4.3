@@ -602,8 +602,9 @@ int subsystem_restart(const char *subsys_name)
 #endif
 
 #ifdef CONFIG_SERIAL_MSM_HS_DEBUG_RINGBUFFER
-	if(strcmp(subsys_name, "qsc_modem") == 0 && enable_ramdumps)
+	if(strcmp(subsys_name, "qsc_modem") == 0){
 		dump_uart_ringbuffer();
+	}
 #endif
 
 	switch (restart_level) {
@@ -718,7 +719,7 @@ static int __init ssr_init_soc_restart_orders(void)
 	}
 
 	if (cpu_is_msm8960() || cpu_is_msm8930() || cpu_is_msm8930aa() ||
-	    cpu_is_msm9615() || cpu_is_apq8064() || cpu_is_msm8627()) {
+	    cpu_is_msm9615() || cpu_is_apq8064() || cpu_is_msm8627() || is_qsc_dsda()) {
 		if (socinfo_get_platform_subtype() == PLATFORM_SUBTYPE_SGLTE) {
 			restart_orders = restart_orders_8960_sglte;
 			n_restart_orders =

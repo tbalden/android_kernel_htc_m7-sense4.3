@@ -1150,8 +1150,11 @@ static int msm_rotator_do_rotate(unsigned long arg)
 	msm_rotator_dev->processing = 1;
 	iowrite32(0x1, MSM_ROTATOR_START);
 
-	wait_event(msm_rotator_dev->wq,
-		   (msm_rotator_dev->processing == 0));
+	if (!wait_event_timeout(msm_rotator_dev->wq,
+			(msm_rotator_dev->processing == 0), HZ)) {
+		pr_err("%s(): Rotator handling timeout!\n", __func__);
+		rc = -ETIME;
+	}
 
 	status = (unsigned char)ioread32(MSM_ROTATOR_INTR_STATUS);
 	if ((status & 0x03) != 0x01) {

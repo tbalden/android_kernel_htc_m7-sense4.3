@@ -48,6 +48,7 @@ io footprint cpu 0			: phy 0x8F1F107C-0x8F1F1084 : virt 0xFB60007C-0xFB600084
 io footprint cpu 1			: phy 0x8F1F1088-0x8F1F1090 : virt 0xFB600088-0xFB600090
 io footprint cpu 2			: phy 0x8F1F1094-0x8F1F109C : virt 0xFB600094-0xFB60009C
 io footprint cpu 3			: phy 0x8F1F10A0-0x8F1F10A8 : virt 0xFB6000A0-0xFB6000A8
+audio sys reset count		: phy 0x8F1F10AC : virt 0xFB6000AC
 */
 
 #define CPU0_EXIT_COUNT_PHYS	(MSM_KERNEL_FOOTPRINT_PHYS + 0x10)

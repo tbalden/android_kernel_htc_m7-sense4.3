@@ -32,6 +32,13 @@
 #include <linux/of.h>
 #include <linux/of_i2c.h>
 
+#if defined(CONFIG_ARCH_DUMMY)
+extern bool is_audio_sys_reset_count_valid(void);
+extern void audio_sys_reset_count_init(void);
+extern void audio_sys_reset_count_set(unsigned char data);
+extern unsigned char audio_sys_reset_count_get(void);
+#endif
+
 MODULE_LICENSE("GPL v2");
 MODULE_VERSION("0.2");
 MODULE_ALIAS("platform:i2c_qup");
@@ -122,6 +129,9 @@ enum {
 
 static char const * const i2c_rsrcs[] = {"i2c_clk", "i2c_sda"};
 static int recover_times[13];
+#if defined(CONFIG_ARCH_DUMMY)
+static int recover_times_i2c_bus[13];
+#endif
 
 #ifdef TEST_RAMDUMP
 static int test_ramdump;
@@ -715,6 +725,11 @@ static void qup_i2c_recover_bus_busy(struct qup_i2c_dev *dev)
 	uint32_t status = readl_relaxed(dev->base + QUP_I2C_STATUS);
 	struct gpiomux_setting old_gpio_setting;
 
+#if defined(CONFIG_ARCH_DUMMY)
+	struct timeval tv1;
+	unsigned char rebooted_count;
+#endif
+
 #if 0   
 	if (dev->pdata->msm_i2c_config_gpio)
 		return;
@@ -791,7 +806,20 @@ static void qup_i2c_recover_bus_busy(struct qup_i2c_dev *dev)
 		dev_info(dev->dev, "Bus busy cleared after %d clock cycles, "
 			 "status %x\n",
 			 i, status);
+#if defined(CONFIG_ARCH_DUMMY)
+		do_gettimeofday(&tv1);
+		if ((dev->boot_mode != MFG_BUILD)
+			&& (tv1.tv_sec < 20)
+			&& (dev->adapter.nr == 7)
+			&& (recover_times_i2c_bus[dev->adapter.nr] >= 10)) {
+			
+		} else {
+			recover_times_i2c_bus[dev->adapter.nr] ++;
+			goto recovery_end;
+		}
+#else
 		goto recovery_end;
+#endif
 	}
 
 	dev_warn(dev->dev, "Bus still busy, status %x\n",
@@ -809,6 +837,37 @@ static void qup_i2c_recover_bus_busy(struct qup_i2c_dev *dev)
 	recover_times[dev->adapter.nr] ++;
 	dev_info(dev->dev, "%s: [I2C_RAMDUMP_DEBUG] recover_times[%d] = %d\n",
 		 __func__, dev->adapter.nr, recover_times[dev->adapter.nr]);
+
+#if defined(CONFIG_ARCH_DUMMY)
+
+	do_gettimeofday(&tv1);
+
+	if((dev->boot_mode != MFG_BUILD)
+		&& (tv1.tv_sec < 20)
+		&& (dev->adapter.nr == 7)){
+
+		if(is_audio_sys_reset_count_valid()){
+			rebooted_count = audio_sys_reset_count_get();
+			if( (rebooted_count) < 2){
+				dev_info(dev->dev, "%s: [I2C] trigger BUG to recover bus [%d], footprint %d, tv1 %10i\n",
+					__func__, dev->adapter.nr, rebooted_count, (int)tv1.tv_sec);
+
+				rebooted_count = rebooted_count + 1;
+				audio_sys_reset_count_set(rebooted_count);
+				recover_times_i2c_bus[dev->adapter.nr] = 0;
+				dump_stack();
+				BUG();
+			}else{
+				dev_info(dev->dev, "%s: [AUD][I2C] Try to recover bus [%d] failed, clear footprint %d -> 0, tv1 %10i\n",
+					__func__, dev->adapter.nr, rebooted_count, (int)tv1.tv_sec);
+
+				rebooted_count = 0;
+				audio_sys_reset_count_set(rebooted_count);
+			}
+		}
+
+	}
+#endif
 
 recovery_end:
 	enable_irq(dev->err_irq);
@@ -1167,9 +1226,28 @@ qup_i2c_probe(struct platform_device *pdev)
 	int ret = 0;
 	int i;
 	struct msm_i2c_platform_data *pdata;
+#if defined(CONFIG_ARCH_DUMMY)
+	unsigned char rebooted_count;
+#endif
+
 	i2c_debug_flag = 0;
 	gsbi_mem = NULL;
 	dev_dbg(&pdev->dev, "qup_i2c_probe\n");
+
+#if defined(CONFIG_ARCH_DUMMY)
+	if(!is_audio_sys_reset_count_valid()){
+		dev_info(&pdev->dev, "[AUD] qup_i2c_probe(), footprint is not valid, init audio_sys_reset_count_init first\n");
+		audio_sys_reset_count_init();
+
+		rebooted_count = audio_sys_reset_count_get();
+		dev_info(&pdev->dev, "%s: [I2C] footprint %d\n",
+			__func__, rebooted_count);
+	}else{
+		rebooted_count = audio_sys_reset_count_get();
+		dev_info(&pdev->dev, "%s: [I2C] footprint %d\n",
+			__func__, rebooted_count);
+	}
+#endif
 
 	if(pdev->id == 0){
 		printk("i2c registerAttr\n");
@@ -1391,8 +1469,12 @@ blsp_core_init:
 	pm_runtime_set_active(&pdev->dev);
 	pm_runtime_enable(&pdev->dev);
 
-	if ((dev->adapter.nr < 13) && (dev->adapter.nr >= 0))
+	if ((dev->adapter.nr < 13) && (dev->adapter.nr >= 0)) {
 		recover_times[dev->adapter.nr] = 0;
+#if defined(CONFIG_ARCH_DUMMY)
+		recover_times_i2c_bus[dev->adapter.nr] = 0;
+#endif
+	}
 
 #ifdef TEST_RAMDUMP
 	test_ramdump = 0;

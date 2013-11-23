@@ -90,6 +90,13 @@ int __init parse_tag_hwid(const struct tag *tags)
 }
 __tagtable(ATAG_HWID, parse_tag_hwid);
 
+static unsigned g_htc_skuid;
+unsigned htc_get_skuid(void)
+{
+        return g_htc_skuid;
+}
+EXPORT_SYMBOL(htc_get_skuid);
+
 #define ATAG_SKUID 0x4d534D73
 int __init parse_tag_skuid(const struct tag *tags)
 {
@@ -104,12 +111,48 @@ int __init parse_tag_skuid(const struct tag *tags)
 		}
 	}
 
-	if (find)
+	if (find){
 		skuid = t->u.revision.rev;
+		g_htc_skuid = skuid;
+	}
 	printk(KERN_DEBUG "parse_tag_skuid: hwid = 0x%x\n", skuid);
 	return skuid;
 }
 __tagtable(ATAG_SKUID, parse_tag_skuid);
+
+#if 1	
+static unsigned g_htc_rfid;
+unsigned htc_get_rfid(void)
+{
+        return g_htc_rfid;
+}
+EXPORT_SYMBOL(htc_get_rfid);
+
+#define ATAG_RFID 0x5A5AA5A5
+int __init parse_tag_rfid(const struct tag *tags)
+{
+	int rfid = 0, find = 0;
+	struct tag *t = (struct tag *)tags;
+
+	printk(KERN_INFO "[J] parse_tag_rfnfcid: +rfid = 0x%x\n", rfid);
+
+	for (; t->hdr.size; t = tag_next(t)) {
+		if (t->hdr.tag == ATAG_RFID) {
+			printk(KERN_DEBUG "[J] find the rfid tag\n");
+			find = 1;
+			break;
+		}
+	}
+
+	if (find){
+		rfid = t->u.revision.rev;
+		g_htc_rfid = rfid;
+	}
+	printk(KERN_INFO "[J] parse_tag_rfnfcid: -rfid = 0x%x\n", rfid);
+	return rfid;
+}
+__tagtable(ATAG_RFID, parse_tag_rfid);
+#endif
 
 
 unsigned int als_kadc;
@@ -660,6 +703,19 @@ unsigned int get_tamper_sf(void)
 }
 EXPORT_SYMBOL(get_tamper_sf);
 
+static int atsdebug = 0;
+int __init check_atsdebug(char *s)
+{
+	atsdebug = simple_strtoul(s, 0, 10);
+	return 1;
+}
+__setup("ro.atsdebug=", check_atsdebug);
+
+unsigned int get_atsdebug(void)
+{
+	return atsdebug;
+}
+
 static int ls_setting = 0;
 #define FAKE_ID 2
 #define REAL_ID 1
@@ -693,6 +749,18 @@ int __init board_wifi_setting(char *s)
 	return 1;
 }
 __setup("wificd=", board_wifi_setting);
+
+char model_id[32];
+char *board_get_mid(void)
+{
+	return model_id;
+}
+static int __init board_set_mid(char *mid)
+{
+	strncpy(model_id, mid, sizeof(model_id));
+	return 1;
+}
+__setup("androidboot.mid=", board_set_mid);
 
 int get_wifi_setting(void)
 {

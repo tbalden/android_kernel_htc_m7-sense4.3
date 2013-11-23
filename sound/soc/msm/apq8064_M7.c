@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -2530,7 +2530,39 @@ static struct snd_soc_dai_link msm_dai[] = {
 		.codec_name = "snd-soc-dummy",
 	},
 	
-
+	
+	{   
+	    .name = "VoLTE Stub",
+	    .stream_name = "VoLTE Stub",
+	    .cpu_dai_name   = "VOLTE_STUB",
+	    .platform_name  = "msm-pcm-hostless",
+	    .dynamic = 1,
+	    .trigger = {SND_SOC_DPCM_TRIGGER_POST,
+	            SND_SOC_DPCM_TRIGGER_POST},
+	    .no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
+	    .ignore_suspend = 1,
+	    .ignore_pmdown_time = 1,
+	    .codec_dai_name = "snd-soc-dummy-dai",
+	    .codec_name = "snd-soc-dummy",
+	},
+#ifdef CONFIG_AUDIO_LOW_LATENCY
+	{    
+	    .name = "MSM8960 LowLatency",
+	    .stream_name = "MultiMedia5",
+	    .cpu_dai_name   = "MultiMedia5",
+	    .platform_name  = "msm-lowlatency-pcm-dsp",
+	    .dynamic = 1,
+	    .codec_dai_name = "snd-soc-dummy-dai",
+	    .codec_name = "snd-soc-dummy",
+	    .trigger = {SND_SOC_DPCM_TRIGGER_POST,
+	            SND_SOC_DPCM_TRIGGER_POST},
+	    .ignore_suspend = 1,
+	    
+	    .ignore_pmdown_time = 1,
+	    .be_id = MSM_FRONTEND_DAI_MULTIMEDIA5,
+	},
+	
+#endif
 };
 
 struct snd_soc_card snd_soc_card_msm = {

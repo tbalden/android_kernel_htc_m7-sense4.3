@@ -1549,6 +1549,16 @@ endmenu
 
 menu "Kernel Features"
 
+config ASM_CODE_FOOTPRINT
+	bool "asm_code_footprint() support."
+	help
+	  asm_code_footprint() support.
+	  The footprint values are PC Address and Instruction.
+	  The footprint values are saved in asm_code_footrpint local stack.
+	  Footprint format:
+	  AC AC AC AC <PC ADDR> <ARM CODE> CA CA CA CA
+
+
 source "kernel/time/Kconfig"
 
 config HAVE_SMP
@@ -2011,6 +2021,8 @@ config ARM_FLUSH_CONSOLE_ON_RESTART
 	  console drivers. This option forces the console lock to be
 	  released if it failed to be acquired, which will cause all the
 	  pending messages to be flushed.
+
+source "arch/arm/mvp/Kconfig"
 
 config CP_ACCESS
 	tristate "CP register access tool"

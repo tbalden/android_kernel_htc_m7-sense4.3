@@ -1221,6 +1221,13 @@ static int link_path_walk(const char *name, struct nameidata *nd)
 			if (err)
 				return err;
 		}
+
+		if (unlikely(nd->inode->i_sb != nd->path.dentry->d_sb)) {
+			pr_info("%s(%s): fail to lookup (%s)\n", __func__, current->comm, name);
+			err = -ENOENT;
+			break;
+		}
+
 		if (can_lookup(nd->inode))
 			continue;
 		err = -ENOTDIR; 

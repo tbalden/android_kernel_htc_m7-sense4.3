@@ -1355,7 +1355,8 @@ static int msm_hs_check_clock_off(struct uart_port *uport)
 #ifdef USE_BCM_BT_CHIP
 	
 	if (msm_uport->rx.is_brcm_rx_wake_locked == 1) {
-		wake_unlock(&msm_uport->rx.brcm_rx_wake_lock);
+		
+		wake_lock_timeout(&msm_uport->rx.brcm_rx_wake_lock, msecs_to_jiffies(5500));
 		msm_uport->rx.is_brcm_rx_wake_locked = 0;
 	}
 #endif
@@ -1629,7 +1630,8 @@ msm_uartdm_ioctl(struct uart_port *uport, unsigned int cmd, unsigned long arg)
 		#endif
 
 		
-		wake_lock_timeout(&msm_uport->tx.brcm_tx_wake_lock, HZ / 2);
+		
+		wake_lock_timeout(&msm_uport->tx.brcm_tx_wake_lock, msecs_to_jiffies(5500));
 		break;
 
 	case 0x8005:
@@ -2255,8 +2257,10 @@ static void msm_hs_shutdown(struct uart_port *uport)
 
 #ifdef USE_BCM_BT_CHIP
 	
-	wake_lock_timeout(&msm_uport->tx.brcm_tx_wake_lock, HZ / 2);
-	wake_lock_timeout(&msm_uport->rx.brcm_rx_wake_lock, HZ / 2);
+	
+	
+	wake_lock_timeout(&msm_uport->tx.brcm_tx_wake_lock, msecs_to_jiffies(5500));
+	wake_lock_timeout(&msm_uport->rx.brcm_rx_wake_lock, msecs_to_jiffies(5500));
 	
 	wake_lock_timeout(&msm_uport->rx.wake_lock, HZ / 10);
 #endif
